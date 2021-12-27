@@ -1,9 +1,10 @@
 const ci = require('miniprogram-ci')
-const fs = require('fs');
 const inquirer = require('inquirer');
 const projectConfig = require('./project.config.json');
-// const versionConfig = require('./version.config.json');
+const updateVersion = require('./updateVersion.js')
 const pkg = require('./package.json');
+let { version } = require('./package.json')
+const NODE_ENV = process.env.NODE_ENV;
 /*ci实例*/
 const project = new ci.Project({
         appid: projectConfig.appid,
@@ -31,15 +32,21 @@ function versionNext(array, idx) {
     let arr = [].concat(array);
     ++arr[idx];
     arr = arr.map((v, i) => i > idx ? 0 : v);
+    // 当最后一位是0的时候, 删除
     if (!parseInt(arr[arr.length - 1])) arr.pop();
     return arr.join('.');
 }
 /** 获取版本选项 */
 function getVersionChoices(version) {
-    const vArrsDesc = ['raise major: ', 'raise minor: ', 'raise patch: ', 'raise alter: '];
+    // 描述数组
+    const vArrsDesc = ['raise major: ', 'raise minor: ', 'raise patch: ']; //, 'raise alter: '暂时无第4位
+    // 版本号(数组形态)
     let vArrs = version.split('.');
+    // 版本号选项
     let choices = vArrsDesc.map((item, index, array) => {
+        // 当配置文件内的版本号，位数不够时补0
         array.length > vArrs.length ? vArrs.push(0) : '';
+        // 版本号拼接
         return vArrsDesc[index] + versionNext(vArrs, index)
     }).reverse();
     // 添加选项
@@ -48,8 +55,7 @@ function getVersionChoices(version) {
 }
 
 function inquirerResult({
-    version,
-    versionDesc
+    version
 } = {}) {
     return inquirer.prompt([
         // 设置版本号
@@ -77,15 +83,14 @@ function inquirerResult({
 }
 /*ci入口函数*/
 async function init() {
-    // Get modification information
-    let versionData = await inquirerResult(pkg);
+    let versionData = {}
+    if (NODE_ENV === 'production') {
+        // Get modification information
+        versionData = await inquirerResult(pkg);
+        //updata package.json version
+        updateVersion();
+    }
     //upload
     await upload(versionData);
-    //修改版本号
-    fs.writeFileSync('./package.json', JSON.stringify(pkg), err => {
-        if (err) {
-            console.log('自动写入app.json文件失败，请手动填写，并检查错误');
-        }
-    });
 }
 init()
